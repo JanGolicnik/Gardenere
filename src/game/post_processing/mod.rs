@@ -18,6 +18,7 @@ pub struct PostProcessing {
     factor_bg: BindGroupHandle<FactorBindGroup>,
     bind_groups: [UntypedBindGroupHandle; 2],
     pub target_texture: TextureHandle,
+    pub darkness: f32,
 }
 
 impl PostProcessing {
@@ -55,15 +56,17 @@ impl PostProcessing {
             bind_groups,
             target_texture,
             factor_bg,
+            darkness: 0.0,
         }
     }
 
-    pub fn set_factor(&mut self, renderer: &mut Renderer, val: f32) {
+    fn set_factor(&mut self, renderer: &mut Renderer, val: f32) {
         let factor = renderer.get_bind_group_t_mut(self.factor_bg).unwrap();
         factor.uniform.factor = val;
     }
 
-    pub fn render_tonemap(&self, renderer: &mut Renderer, context: &mut EngineContext) {
+    pub fn render_tonemap(&mut self, renderer: &mut Renderer, context: &mut EngineContext) {
+        self.set_factor(renderer, 1.0 - self.darkness);
         renderer.set_target_surface();
         renderer.render(&[&self.quad], context, &self.fade_shader, &self.bind_groups);
     }

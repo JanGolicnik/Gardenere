@@ -1,5 +1,6 @@
 pub mod clickableobject;
 mod constants;
+mod main_plant;
 mod plant;
 mod player;
 mod polygon;
@@ -8,6 +9,7 @@ mod scenes;
 mod sprite_renderer;
 
 use std::collections::HashMap;
+use std::io::stdout;
 
 use jandering_engine::engine::EngineContext;
 use jandering_engine::types::{Vec2, Vec3};
@@ -23,6 +25,8 @@ use constants::{RESOLUTION_X, RESOLUTION_Y};
 
 use crate::game::constants::SLEEP_LENGTH;
 
+use self::constants::{STARTING_CASH, STARTING_POTS};
+use self::main_plant::MainPlant;
 use self::player::Player;
 use self::post_processing::PostProcessing;
 use self::scenes::Scenes;
@@ -42,6 +46,8 @@ pub struct Game {
     scenes: Scenes,
     popr: PostProcessing,
     player: Player,
+    main_plant: MainPlant,
+    settings: GameSettings,
 }
 
 pub struct InputInfo {
@@ -50,6 +56,18 @@ pub struct InputInfo {
     right_pressed: bool,
     right_released: bool,
     mouse_pos: Option<Vec2>,
+}
+
+pub struct GameSettings {
+    sound_on: bool,
+}
+
+pub struct GameData<'a> {
+    player: &'a mut Player,
+    main_plant: &'a mut MainPlant,
+    input: &'a mut InputInfo,
+    settings: &'a mut GameSettings,
+    popr: &'a mut PostProcessing,
 }
 
 impl Game {
@@ -72,10 +90,16 @@ impl Game {
 
         let player = Player {
             hp: 100.0,
-            coins: 3,
+            coins: STARTING_CASH,
+            total_coins: 0,
             owned_seeds: HashMap::new(),
-            owned_pots: 3,
+            owned_pots: STARTING_POTS,
+            has_axe: false,
         };
+
+        let main_plant = MainPlant::new(&mut sprite_renderer);
+
+        let settings = GameSettings { sound_on: true };
 
         Self {
             engine,
@@ -84,6 +108,8 @@ impl Game {
             scenes,
             popr,
             player,
+            main_plant,
+            settings,
         }
     }
 
@@ -95,6 +121,8 @@ impl Game {
             mut scenes,
             mut popr,
             mut player,
+            mut main_plant,
+            mut settings,
             ..
         } = self;
 
@@ -123,33 +151,41 @@ impl Game {
                 }
             }
 
+            let mut data = GameData {
+                player: &mut player,
+                main_plant: &mut main_plant,
+                input: &mut input,
+                settings: &mut settings,
+                popr: &mut popr,
+            };
+
             let mut update_scene = true;
 
             if sleep_timer > 0.0 {
                 sleep_timer -= dt;
                 if sleep_timer <= 0.0 {
-                    scenes.garden.new_day(&mut sprite_renderer);
+                    scenes.garden.new_day(&mut data, &mut sprite_renderer);
+                    data.main_plant.new_day(data.player);
+                    data.popr.darkness = 1.0;
                 }
                 update_scene = false;
-                popr.set_factor(renderer, (0.5 - sleep_timer / SLEEP_LENGTH).abs() * 2.0);
-            } else {
-                popr.set_factor(renderer, 1.0);
+                data.popr.darkness = 1.0 - (0.5 - sleep_timer / SLEEP_LENGTH).abs() * 2.0;
             }
 
             let scene = scenes.get_active_scene();
 
             let mut action = None;
             if update_scene {
-                action = scene.update(context, &mut input, &mut sprite_renderer, &mut player);
+                action = scene.update(context, &mut sprite_renderer, &mut data);
             }
 
-            renderer.clear_texture(context.encoder, popr.target_texture, CLEAR_COLOR);
-            renderer.set_render_target(popr.target_texture);
+            renderer.clear_texture(context.encoder, data.popr.target_texture, CLEAR_COLOR);
+            renderer.set_render_target(data.popr.target_texture);
 
-            scene.render(&mut player, &mut sprite_renderer);
+            scene.render(&mut data, &mut sprite_renderer);
             sprite_renderer.submit(context, renderer);
 
-            popr.render_tonemap(renderer, context);
+            data.popr.render_tonemap(renderer, context);
 
             if let Some(action) = action {
                 match action {
@@ -157,7 +193,7 @@ impl Game {
                         scenes.set_scene(scene);
                         scenes
                             .get_active_scene()
-                            .refresh(&mut player, &mut sprite_renderer);
+                            .refresh(&mut data, &mut sprite_renderer);
                     }
                     clickableobject::ObjectAction::Exit => todo!(),
                     clickableobject::ObjectAction::Sleep => sleep_timer = SLEEP_LENGTH,

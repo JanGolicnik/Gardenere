@@ -1,6 +1,6 @@
 use crate::game::clickableobject::ObjectSprite;
-use crate::game::player::Player;
-use crate::game::InputInfo;
+use crate::game::main_plant::MainPlantStage;
+use crate::game::GameData;
 use crate::{
     clickable,
     game::{
@@ -33,17 +33,25 @@ impl FrontScene {
 }
 
 impl Scene for FrontScene {
-    fn refresh(&mut self, player: &mut Player, sprite_renderer: &mut SpriteRenderer) {}
+    fn refresh(&mut self, data: &mut GameData, sprite_renderer: &mut SpriteRenderer) {}
     fn update(
         &mut self,
         context: &mut EngineContext,
-        input: &mut InputInfo,
         sprite_renderer: &mut SpriteRenderer,
-        player: &mut Player,
+        data: &mut GameData,
     ) -> Option<ObjectAction> {
-        self.market.update(context, input);
-        self.garden.update(context, input);
-        self.house.update(context, input);
+        self.market.update(context, data.input);
+        self.garden.update(context, data.input);
+        self.house.update(context, data.input);
+
+        if matches!(data.main_plant.stage, MainPlantStage::Final) {
+            self.garden.swap_textures(
+                ObjectSprite::Frame("front_gardenfucked"),
+                ObjectSprite::Frame("front_gardenfucked_hovered"),
+                sprite_renderer,
+            );
+            self.garden.position.y = 170.0;
+        }
 
         if self.market.is_clicked {
             return Some(ObjectAction::Goto(ActiveScene::Market));
@@ -58,7 +66,7 @@ impl Scene for FrontScene {
         None
     }
 
-    fn render(&mut self, player: &mut Player, sprite_renderer: &mut SpriteRenderer) {
+    fn render(&mut self, data: &mut GameData, sprite_renderer: &mut SpriteRenderer) {
         sprite_renderer.render(
             D2Instance {
                 scale: Vec2::new(RESOLUTION_X as f32, RESOLUTION_Y as f32),

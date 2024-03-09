@@ -158,6 +158,17 @@ impl ClickableObject {
     pub fn size(&self, sprite_renderer: &mut SpriteRenderer) -> Vec2 {
         sprite_renderer.get_sprite(self.get_current_frame()).size * self.scale
     }
+
+    pub fn swap_textures(
+        &mut self,
+        tex: ObjectSprite,
+        hovered: ObjectSprite,
+        sprite_renderer: &mut SpriteRenderer,
+    ) {
+        self.texture = tex;
+        self.hovered_texture = hovered;
+        self.size = self.size(sprite_renderer);
+    }
 }
 
 #[macro_export]

@@ -3,9 +3,8 @@ use std::{cmp::Ordering, f32::consts::PI};
 use crate::game::{
     clickableobject::ObjectSprite,
     plant::{seed_packet_from_plant, Plant, PlantType},
-    player::Player,
     polygon::Polygon,
-    sprite_renderer, InputInfo,
+    GameData, InputInfo,
 };
 use jandering_engine::{
     engine::EngineContext,
@@ -116,7 +115,7 @@ impl GardenScene {
         }
     }
 
-    pub fn new_day(&mut self, sprite_renderer: &mut SpriteRenderer) {
+    pub fn new_day(&mut self, data: &mut GameData, sprite_renderer: &mut SpriteRenderer) {
         self.pots
             .pots
             .iter_mut()
@@ -125,9 +124,9 @@ impl GardenScene {
 }
 
 impl Scene for GardenScene {
-    fn refresh(&mut self, player: &mut Player, sprite_renderer: &mut SpriteRenderer) {
+    fn refresh(&mut self, data: &mut GameData, sprite_renderer: &mut SpriteRenderer) {
         self.cards.cards.clear();
-        for (plant_type, num) in player.owned_seeds.iter() {
+        for (plant_type, num) in data.player.owned_seeds.iter() {
             let plant_type = *plant_type;
             let mut object = seed_packet_from_plant(plant_type, sprite_renderer);
             object.position.y = CARD_STARTING_Y;
@@ -138,46 +137,51 @@ impl Scene for GardenScene {
     fn update(
         &mut self,
         context: &mut EngineContext,
-        input: &mut InputInfo,
         sprite_renderer: &mut SpriteRenderer,
-        player: &mut Player,
+        data: &mut GameData,
     ) -> Option<ObjectAction> {
-        self.front.update(context, input);
+        if data.popr.darkness > 0.0 {
+            data.popr.darkness -= context.dt as f32 * 3.0;
+            return None;
+        }
+
+        data.main_plant.update(context, data.input, sprite_renderer);
+        self.front.update(context, data.input);
         if self.front.is_clicked {
             return Some(ObjectAction::Goto(ActiveScene::Front));
         }
 
         let was_held = self.placeable_pot.is_held;
-        self.placeable_pot.update(context, input);
+        self.placeable_pot.update(context, data.input);
         if self.placeable_pot.is_held {
-            self.placeable_pot.position = input.mouse_pos.unwrap_or(Vec2::ZERO);
+            self.placeable_pot.position = data.input.mouse_pos.unwrap_or(Vec2::ZERO);
         } else {
             self.placeable_pot.position +=
                 (POT_END - self.placeable_pot.position) * context.dt as f32 * 4.0;
         }
         self.placeable_pot.scale = Pots::perspective_factor(self.placeable_pot.position.y);
 
-        self.cards.update(context, input, sprite_renderer);
+        self.cards.update(context, data.input, sprite_renderer);
         self.pots.update(
             context,
-            input,
+            data.input,
             self.cards.held_card.is_some(),
             sprite_renderer,
         );
 
         if let Some(card_index) = self.cards.held_card {
-            if input.left_pressed {
+            if data.input.left_pressed {
                 let plant_type = self.cards.cards[card_index].plant_type;
                 if self.pots.place_plant(plant_type, sprite_renderer) {
-                    let n_seeds = player.owned_seeds.get_mut(&plant_type).unwrap();
+                    let n_seeds = data.player.owned_seeds.get_mut(&plant_type).unwrap();
                     if *n_seeds == 1 {
-                        player.owned_seeds.remove(&plant_type);
+                        data.player.owned_seeds.remove(&plant_type);
                         self.cards.cards.remove(card_index);
                     } else {
                         self.cards.cards[card_index].object.position.y = CARD_STARTING_Y;
                         *n_seeds -= 1;
                     }
-                } else if input.left_pressed
+                } else if data.input.left_pressed
                     && !self
                         .cards
                         .cards
@@ -185,13 +189,13 @@ impl Scene for GardenScene {
                         .enumerate()
                         .any(|(i, e)| i != card_index && e.object.is_clicked)
                 {
-                    input.left_pressed = false;
+                    data.input.left_pressed = false;
                 }
                 self.cards.held_card = None;
             }
         } else {
-            self.pots.harvest_plants(input, player);
-            if was_held && input.left_released && self.pots.try_placing_pot(input, player) {
+            self.pots.harvest_plants(data);
+            if was_held && data.input.left_released && self.pots.try_placing_pot(data) {
                 self.placeable_pot.position = POT_START;
             }
         }
@@ -199,7 +203,7 @@ impl Scene for GardenScene {
         None
     }
 
-    fn render(&mut self, player: &mut Player, sprite_renderer: &mut SpriteRenderer) {
+    fn render(&mut self, data: &mut GameData, sprite_renderer: &mut SpriteRenderer) {
         sprite_renderer.render(
             D2Instance {
                 scale: Vec2::new(RESOLUTION_X as f32, RESOLUTION_Y as f32),
@@ -209,7 +213,8 @@ impl Scene for GardenScene {
             0,
         );
 
-        if player.owned_pots > 0 {
+        data.main_plant.render(sprite_renderer);
+        if data.player.owned_pots > 0 {
             self.placeable_pot.render(sprite_renderer);
         }
         self.pots.render(sprite_renderer);
@@ -265,6 +270,7 @@ impl Pots {
         for pot in self.pots.iter_mut() {
             let center = pot.center();
             if let Some(plant) = &mut pot.plant {
+                plant.update(sprite_renderer);
                 plant.object.scale = pot.object.scale;
                 plant.object.position = center;
                 plant.object.position.y += plant.object.size.y * 0.5;
@@ -290,7 +296,7 @@ impl Pots {
         if let Some(pot) = self
             .pots
             .iter_mut()
-            .filter(|e| e.object.is_hovered)
+            .filter(|e| e.plant.is_none() && e.object.is_hovered)
             .min_by(|a, b| {
                 if a.object.position.y < b.object.position.y {
                     Ordering::Greater
@@ -308,26 +314,27 @@ impl Pots {
         }
     }
 
-    fn harvest_plants(&mut self, input: &mut InputInfo, player: &mut Player) {
-        if !input.left_pressed {
+    fn harvest_plants(&mut self, data: &mut GameData) {
+        if !data.input.left_pressed {
             return;
         }
         for pot in self.pots.iter_mut() {
             if let Some(plant) = &mut pot.plant {
                 if plant.object.is_clicked && plant.can_harvest() {
-                    player.coins += plant.value();
-                    pot.plant = None;
-                    input.left_pressed = false;
+                    data.input.left_pressed = false;
+                    if plant.harvest(data) {
+                        pot.plant = None;
+                    }
                 }
             }
         }
     }
 
-    fn try_placing_pot(&mut self, input: &mut InputInfo, player: &mut Player) -> bool {
-        if player.owned_pots == 0 {
+    fn try_placing_pot(&mut self, data: &mut GameData) -> bool {
+        if data.player.owned_pots == 0 {
             return false;
         }
-        let mouse_pos = input.mouse_pos.unwrap_or(Vec2::ZERO);
+        let mouse_pos = data.input.mouse_pos.unwrap_or(Vec2::ZERO);
         let mouse_in_placeable_area = self.placeable_area.point_inside(mouse_pos);
 
         if mouse_in_placeable_area
@@ -338,7 +345,7 @@ impl Pots {
             let mut pot = self.base_pot.clone();
             pot.object.position = mouse_pos;
             self.pots.push(pot);
-            player.owned_pots -= 1;
+            data.player.owned_pots -= 1;
             true
         } else {
             false
@@ -353,12 +360,12 @@ impl Pots {
 
 impl Pot {
     fn center(&self) -> Vec2 {
-        self.object.position + Vec2::new(0.0, self.object.size.y * 0.5 * 0.75 * self.object.scale)
+        self.object.position + Vec2::new(0.0, self.object.size.y * 0.5 * 0.6 * self.object.scale)
     }
 
     fn grow(&mut self, sprite_renderer: &mut SpriteRenderer) {
         if let Some(plant) = &mut self.plant {
-            plant.grow(sprite_renderer);
+            plant.grow();
         }
     }
 }

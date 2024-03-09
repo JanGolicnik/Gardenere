@@ -1,7 +1,6 @@
 use crate::frame;
 use crate::game::clickableobject::{ObjectFrame, ObjectSprite};
-use crate::game::player::Player;
-use crate::game::InputInfo;
+use crate::game::GameData;
 use crate::{
     clickable,
     game::{
@@ -36,28 +35,27 @@ impl HouseScene {
 }
 
 impl Scene for HouseScene {
-    fn refresh(&mut self, player: &mut Player, sprite_renderer: &mut SpriteRenderer) {}
+    fn refresh(&mut self, data: &mut GameData, sprite_renderer: &mut SpriteRenderer) {}
 
     fn update(
         &mut self,
         context: &mut EngineContext,
-        input: &mut InputInfo,
         sprite_renderer: &mut SpriteRenderer,
-        player: &mut Player,
+        data: &mut GameData,
     ) -> Option<ObjectAction> {
-        self.door.update(context, input);
-        self.bed.update(context, input);
+        self.door.update(context, data.input);
+        self.bed.update(context, data.input);
         if self.door.is_clicked {
             return Some(ObjectAction::Goto(ActiveScene::Front));
         }
         if self.bed.is_clicked {
             return Some(ObjectAction::Sleep);
         }
-        self.guy.update(context, input);
+        self.guy.update(context, data.input);
         None
     }
 
-    fn render(&mut self, player: &mut Player, sprite_renderer: &mut SpriteRenderer) {
+    fn render(&mut self, data: &mut GameData, sprite_renderer: &mut SpriteRenderer) {
         sprite_renderer.render(
             D2Instance {
                 scale: Vec2::new(RESOLUTION_X as f32, RESOLUTION_Y as f32),

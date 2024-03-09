@@ -1,18 +1,11 @@
-OKEJ PLAN JE
-
-ti si vrtnar k vzgaja eno rozo
-tista roza tko dost pocasi raste pa nc pridelkov ti ne daje
-medtem sadis tko jagode pa tako ig k jih pol prodas za dnar
-vsak dan una roza mal zraste, pa bl k se ukvarjas z drugimi vecc zraste
-problem je pol k ti ta roza unicuje druge roze (blizi k si druge posadiv njej hitrej zgnijejo alpakej)
-nekak rabm vpelat to da rabs rozo hrant z krvjo
-plan bi biu da bi rabu pol si tko oko kt v uni s kartami vn fuknt pa tko prste pa to da bi ji rabu dt da opocasnis njeno rast
-cilj bi biu pa da v shopu kups diamantno motorko alpaneki s kero jo loh pol posekas
-ce ti ne rata v dolocnm stevilu dni pol je scena k je ta roza tko neskonco velka pa se ti zapentla okol nog pa te pohrusta
-gg
-
-doma bi meu na mizi noz pa zlico pa bi si loh odrezov prste pa bi se pol to pokazal na cursorju
-ce si vzames oko pol ne vids polovice ekrana
-
-PLAN ZDJ
-mam scene pa fizko pa loh grem iz hise na dvorisce pa na trznco
+to-do:
+pobiranje polzov
+knigica z navodili - po tem k je kri najdes se stran na keri pise da ne sme dobit krvi alneki
+intro outro - main meni
+da roza poje polze
+da si odrezes stvari
+redrawat use
+post processing
+soundsi
+zalivanje
+minigamei
