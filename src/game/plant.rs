@@ -1,14 +1,9 @@
 use crate::{clickable_nohover, game::clickableobject::ObjectSprite};
-use jandering_engine::types::Vec2;
+use jandering_engine::{object::D2Instance, types::Vec2};
 
 use crate::clickable;
 
-use super::{
-    clickableobject::ClickableObject,
-    constants::{FLOWER_VALUE, STRAWBERRY_VALUE, WATERMELON_VALUE},
-    sprite_renderer::SpriteRenderer,
-    GameData,
-};
+use super::{clickableobject::ClickableObject, sprite_renderer::SpriteRenderer};
 
 #[derive(Eq, PartialEq, std::hash::Hash, Clone, Copy)]
 pub enum PlantType {
@@ -17,12 +12,21 @@ pub enum PlantType {
     Watermelon,
 }
 
+#[derive(Eq, PartialEq, std::hash::Hash, Clone, Copy)]
+pub enum PlantState {
+    Growing,
+    Harvestable,
+    Dead,
+}
+
 #[derive(Clone)]
 pub struct Plant {
     pub object: ClickableObject,
     pub plant_type: PlantType,
     pub growth: u32,
+    pub state: PlantState,
     update_sprite: bool,
+    pub watered: bool,
 }
 
 impl Plant {
@@ -40,7 +44,9 @@ impl Plant {
             object,
             plant_type,
             growth: 0,
+            state: PlantState::Growing,
             update_sprite: false,
+            watered: false,
         }
     }
 
@@ -54,7 +60,23 @@ impl Plant {
     }
 
     pub fn grow(&mut self) {
-        self.set_growth(self.growth + 1)
+        if self.watered {
+            // match self.plant_type {
+            //     PlantType::Strawberry => {
+            //         self.set_growth(4);
+            //     }
+            //     PlantType::Flower => {
+            //         self.set_growth(1);
+            //     }
+            //     PlantType::Watermelon => {
+            //         self.set_growth(5);
+            //     }
+            // }
+            self.set_growth(self.growth + 1);
+            self.watered = false;
+        } else {
+            self.die();
+        }
     }
 
     fn set_growth(&mut self, val: u32) {
@@ -65,66 +87,100 @@ impl Plant {
                 0 => "plants_strawberry",
                 1..=3 => "plants_strawberry1",
                 4 => {
+                    self.state = PlantState::Harvestable;
                     hovered = Some("plants_strawberry2_hovered");
                     "plants_strawberry2"
                 }
-                _ => "plants_strawberry3",
+                _ => {
+                    self.state = PlantState::Dead;
+                    "plants_strawberry3"
+                }
             },
             PlantType::Flower => match self.growth {
                 0 => "plants_flower",
                 1 => {
+                    self.state = PlantState::Harvestable;
                     hovered = Some("plants_flower1_hovered");
                     "plants_flower1"
                 }
-                _ => "plants_flower2",
+                _ => {
+                    self.state = PlantState::Dead;
+                    "plants_flower2"
+                }
             },
             PlantType::Watermelon => match self.growth {
                 0 => "plants_watermelon1",
                 1..=2 => "plants_watermelon2",
                 3..=4 => "plants_watermelon3",
                 5 => {
+                    self.state = PlantState::Harvestable;
                     hovered = Some("plants_watermelon4_hovered");
                     "plants_watermelon4"
                 }
-                _ => "plants_watermelon5",
+                _ => {
+                    self.state = PlantState::Dead;
+                    "plants_watermelon5"
+                }
             },
         };
         self.object.texture = ObjectSprite::Frame(tex);
+
         self.object.hovered_texture =
             ObjectSprite::Frame(if let Some(t) = hovered { t } else { tex });
         self.update_sprite = true;
     }
 
-    pub fn value(&self) -> u32 {
-        match self.plant_type {
-            PlantType::Strawberry => STRAWBERRY_VALUE,
-            PlantType::Flower => FLOWER_VALUE,
-            PlantType::Watermelon => WATERMELON_VALUE,
-        }
-    }
-
-    pub fn can_harvest(&self) -> bool {
-        match self.plant_type {
-            PlantType::Strawberry => self.growth == 4,
-            PlantType::Flower => self.growth == 1,
-            PlantType::Watermelon => self.growth == 5,
-        }
-    }
-
-    pub fn harvest(&mut self, data: &mut GameData) -> bool {
-        let val = self.value();
-        data.player.coins += val;
-        data.player.total_coins += val;
+    pub fn harvest(&mut self) -> bool {
         match self.plant_type {
             PlantType::Strawberry => {
-                self.growth = 1;
+                self.state = PlantState::Growing;
+                self.set_growth(1);
                 false
             }
-            PlantType::Flower => true,
+            PlantType::Flower => {
+                if self.growth >= 2 {
+                    return true;
+                }
+                true
+            }
             PlantType::Watermelon => {
-                self.growth = 2;
+                self.state = PlantState::Growing;
+                self.set_growth(2);
                 false
             }
+        }
+    }
+
+    pub fn die(&mut self) {
+        match self.plant_type {
+            PlantType::Strawberry => self.set_growth(5),
+            PlantType::Flower => self.set_growth(2),
+            PlantType::Watermelon => self.set_growth(6),
+        }
+    }
+
+    pub fn render(&mut self, sprite_renderer: &mut SpriteRenderer) {
+        self.object.render(sprite_renderer);
+        if let Some(sprite) = match self.state {
+            PlantState::Growing => {
+                if !self.watered {
+                    Some("garden_water")
+                } else {
+                    None
+                }
+            }
+            PlantState::Harvestable => Some("plants_coins"),
+            PlantState::Dead => None,
+        } {
+            let position = self.object.position + Vec2::new(-30.0, 60.0);
+            sprite_renderer.render(
+                D2Instance {
+                    position,
+                    ..Default::default()
+                },
+                sprite,
+                4,
+            );
         }
     }
 }

@@ -1,13 +1,14 @@
 use jandering_engine::{engine::EngineContext, object::D2Instance, types::Vec2};
 
 use super::{
-    constants::FRAME_LENGTH, scenes::ActiveScene, sprite_renderer::SpriteRenderer, InputInfo,
+    constants::FRAME_LENGTH, scenes::ActiveScene, sounds::play_sound,
+    sprite_renderer::SpriteRenderer, GameData,
 };
 
 #[derive(Copy, Clone)]
 pub enum ObjectAction {
     Goto(ActiveScene),
-    Sleep,
+    NewDay,
     Pressed,
     Exit,
 }
@@ -36,6 +37,7 @@ pub struct ClickableObject {
     pub rotation: f32,
     pub texture: ObjectSprite,
     pub hovered_texture: ObjectSprite,
+    pub hovered_sounds: Option<Vec<&'static str>>,
     time: f32,
 }
 
@@ -63,20 +65,31 @@ impl ClickableObject {
             time: 0.0,
             scale: 1.0,
             rotation: 0.0,
+            hovered_sounds: None,
         }
     }
 
-    pub fn update(&mut self, context: &EngineContext, input: &mut InputInfo) {
-        if let Some(mouse_pos) = input.mouse_pos {
-            self.is_hovered = self.is_hovered(mouse_pos);
+    pub fn update(&mut self, context: &EngineContext, data: &mut GameData) {
+        if let Some(mouse_pos) = data.input.mouse_pos {
+            let hovered = self.is_hovered(mouse_pos);
+            if data.settings.sound_on {
+                if let Some(hovered_sounds) = &mut self.hovered_sounds {
+                    if !self.is_hovered && hovered {
+                        let last = hovered_sounds.pop().unwrap();
+                        play_sound(last, 0.75);
+                        hovered_sounds.insert(0, last);
+                    }
+                }
+            }
+            self.is_hovered = hovered;
         }
         self.is_clicked = false;
         self.time += context.dt as f32;
-        if input.left_pressed && self.is_hovered {
+        if data.input.left_pressed && self.is_hovered {
             self.is_clicked = true;
             self.is_held = true;
         }
-        if input.left_released {
+        if data.input.left_released {
             self.is_held = false;
         }
 

@@ -37,17 +37,22 @@ impl TitleScene {
 }
 
 impl Scene for TitleScene {
-    fn refresh(&mut self, data: &mut GameData, sprite_renderer: &mut SpriteRenderer) {}
+    fn refresh(&mut self, _data: &mut GameData, _sprite_renderer: &mut SpriteRenderer) {}
     fn update(
         &mut self,
         context: &mut EngineContext,
-        sprite_renderer: &mut SpriteRenderer,
+        _sprite_renderer: &mut SpriteRenderer,
         data: &mut GameData,
     ) -> Option<ObjectAction> {
         let dt = context.dt as f32;
+
+        if data.popr.distortion > 0.0 {
+            data.popr.distortion -= data.popr.distortion * dt * 3.0;
+            data.popr.time = 0.0
+        }
         match &mut self.state {
             State::Idle => {
-                self.play_btn.update(context, data.input);
+                self.play_btn.update(context, data);
 
                 if self.play_btn.is_clicked {
                     self.state = State::PlayAnim {
@@ -56,7 +61,7 @@ impl Scene for TitleScene {
                     };
                 }
 
-                self.sound_toggle.update(context, data.input);
+                self.sound_toggle.update(context, data);
 
                 if self.sound_toggle.is_clicked {
                     data.settings.sound_on = !data.settings.sound_on;
@@ -87,6 +92,9 @@ impl Scene for TitleScene {
                 self.bg_y += *vel_y * dt;
             }
             State::Intro(time) => {
+                if data.popr.darkness > 0.0 {
+                    data.popr.darkness -= dt * 3.0;
+                }
                 if *time < 0.0 {
                     self.bg_y = -(RESOLUTION_Y as f32);
                     if data.input.left_pressed {
@@ -108,7 +116,7 @@ impl Scene for TitleScene {
         None
     }
 
-    fn render(&mut self, data: &mut GameData, sprite_renderer: &mut SpriteRenderer) {
+    fn render(&mut self, _data: &mut GameData, sprite_renderer: &mut SpriteRenderer) {
         sprite_renderer.render(
             D2Instance {
                 position: Vec2::new(0.0, self.bg_y + RESOLUTION_Y as f32),
@@ -129,7 +137,7 @@ impl Scene for TitleScene {
 
         sprite_renderer.render(
             D2Instance {
-                position: Vec2::new(-11.0, self.bg_y + 105.0),
+                position: Vec2::new(-11.0, self.bg_y + 120.0),
                 ..Default::default()
             },
             "title_title",

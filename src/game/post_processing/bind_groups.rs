@@ -4,17 +4,19 @@ use wgpu::util::DeviceExt;
 
 #[repr(C)]
 #[derive(Debug, Copy, Clone, bytemuck::Pod, bytemuck::Zeroable)]
-pub struct FactorBindGroupUniform {
+pub struct PoprBindGroupUniform {
     pub factor: f32,
-    padding: [f32; 3],
+    pub time: f32,
+    pub distortion: f32,
+    pub vignette: f32,
 }
 
-pub struct FactorBindGroup {
-    pub uniform: FactorBindGroupUniform,
+pub struct PoprBindGroup {
+    pub uniform: PoprBindGroupUniform,
     render_data: BindGroupRenderData,
 }
 
-impl BindGroup for FactorBindGroup {
+impl BindGroup for PoprBindGroup {
     fn get_bind_group_layout(&self) -> Option<&wgpu::BindGroupLayout> {
         Some(&self.render_data.bind_group_layout)
     }
@@ -32,17 +34,19 @@ impl BindGroup for FactorBindGroup {
     }
 }
 
-impl FactorBindGroup {
+impl PoprBindGroup {
     pub fn new(renderer: &Renderer) -> Self {
-        let uniform = FactorBindGroupUniform {
+        let uniform = PoprBindGroupUniform {
             factor: 0.0,
-            padding: [0.0; 3],
+            time: 0.0,
+            distortion: 1.0,
+            vignette: 1.0,
         };
 
         let buffer = renderer
             .device
             .create_buffer_init(&wgpu::util::BufferInitDescriptor {
-                label: Some("FactorBindGroup Buffer"),
+                label: Some("PoprBindGroup Buffer"),
                 contents: bytemuck::cast_slice(&[uniform]),
                 usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
             });
@@ -61,7 +65,7 @@ impl FactorBindGroup {
                         },
                         count: None,
                     }],
-                    label: Some("FactorBindGroup_bind_group_layout"),
+                    label: Some("PoprBindGroup_bind_group_layout"),
                 });
 
         let bind_group = renderer
@@ -72,7 +76,7 @@ impl FactorBindGroup {
                     binding: 0,
                     resource: buffer.as_entire_binding(),
                 }],
-                label: Some("FactorBindGroup_bind_group"),
+                label: Some("PoprBindGroup_bind_group"),
             });
 
         Self {

@@ -5,15 +5,17 @@ use crate::{
         sprite_renderer::SpriteRenderer,
     },
 };
-use jandering_engine::{engine::EngineContext, object::D2Instance, types::Vec2};
+use jandering_engine::{object::D2Instance, types::Vec2};
 
-use super::{player::Player, InputInfo};
+use super::{player::Player, post_processing::PostProcessing};
+
+const BLOOD_POS: Vec2 = Vec2::new(-90.0, 0.0);
 
 pub struct MainPlant {
-    pub growth: f32,
-    pub hunger: f32,
+    pub growth: u32,
     pub object: ClickableObject,
     pub stage: MainPlantStage,
+    pub requires_blood: bool,
 }
 
 pub enum MainPlantStage {
@@ -31,22 +33,12 @@ impl MainPlant {
     pub fn new(sprite_renderer: &mut SpriteRenderer) -> Self {
         let object = clickable_nohover!(0.0, 0.0, "mainplant_growth0", sprite_renderer);
         Self {
-            growth: 0.0,
-            hunger: 0.0,
+            growth: 0,
             object,
             stage: MainPlantStage::Planted,
+            requires_blood: false,
         }
     }
-
-    pub fn update(
-        &mut self,
-        context: &EngineContext,
-        input: &mut InputInfo,
-        sprite_renderer: &mut SpriteRenderer,
-    ) {
-        self.object.update(context, input);
-    }
-
     pub fn render(&mut self, sprite_renderer: &mut SpriteRenderer) {
         self.object.render(sprite_renderer);
 
@@ -58,52 +50,81 @@ impl MainPlant {
             "garden_pot",
             3,
         );
+
+        if self.requires_blood
+            && !matches!(self.stage, MainPlantStage::Final | MainPlantStage::Gone)
+        {
+            sprite_renderer.render(
+                D2Instance {
+                    position: BLOOD_POS,
+                    ..Default::default()
+                },
+                "mainplant_blood",
+                4,
+            );
+        }
     }
 
-    pub fn new_day(&mut self, player: &mut Player) {
-        self.growth += 1.0 + self.hunger * self.hunger;
+    pub fn new_day(&mut self, player: &mut Player, popr: &mut PostProcessing) {
+        self.growth += if self.requires_blood { 100 } else { 1 };
         let next_stage = match self.stage {
             MainPlantStage::Planted => {
-                if player.total_coins > 7 {
+                if player.total_coins > 7 || self.growth > 10 {
                     Some(MainPlantStage::Second)
                 } else {
                     None
                 }
             }
             MainPlantStage::Second => {
-                if self.growth > 8.0 {
+                if self.growth > 3 {
                     Some(MainPlantStage::Third)
                 } else {
                     None
                 }
             }
             MainPlantStage::Third => {
-                if self.growth > 7.0 {
+                if self.growth > 3 {
                     Some(MainPlantStage::Blood)
                 } else {
+                    if self.growth == 2 {
+                        self.requires_blood = true;
+                    }
                     None
                 }
             }
             MainPlantStage::Blood => {
-                if self.growth > 6.0 {
+                if self.growth > 2 {
+                    popr.distortion += 0.3;
                     Some(MainPlantStage::Scary)
                 } else {
+                    if self.growth == 1 {
+                        self.requires_blood = true;
+                    }
                     None
                 }
             }
             MainPlantStage::Scary => {
-                if self.growth > 5.0 {
+                if self.growth > 2 {
+                    popr.distortion += 0.3;
                     Some(MainPlantStage::Overgrown)
                 } else {
+                    if self.growth == 1 {
+                        self.requires_blood = true;
+                    }
                     None
                 }
             }
-            MainPlantStage::Overgrown => Some(MainPlantStage::Gone),
-            MainPlantStage::Gone | MainPlantStage::Final => Some(MainPlantStage::Final),
+            MainPlantStage::Overgrown => {
+                popr.distortion += 0.4;
+                Some(MainPlantStage::Gone)
+            }
+            MainPlantStage::Gone | MainPlantStage::Final => {
+                popr.distortion += 0.4;
+                Some(MainPlantStage::Final)
+            }
         };
         if let Some(stage) = next_stage {
-            self.growth = 0.0;
-            self.hunger = 0.0;
+            self.growth = 0;
             self.stage = stage;
             let (tex, hovered) = match self.stage {
                 MainPlantStage::Planted => ("mainplant_growth0", None),
@@ -117,8 +138,20 @@ impl MainPlant {
             };
             self.object.texture = ObjectSprite::Frame(tex);
             self.object.hovered_texture = hovered.unwrap_or(self.object.texture.clone());
-        } else {
-            self.hunger += 0.5 + player.total_coins as f32 / 100.0;
+        }
+    }
+
+    pub fn feed(&mut self, player: &mut Player, popr: &mut PostProcessing) {
+        if self.requires_blood {
+            if player.cut_finger && !player.used_finger {
+                player.used_finger = true;
+                popr.distortion += 0.5;
+                self.requires_blood = false;
+            } else if player.cut_eye && !player.used_eye {
+                player.used_eye = true;
+                self.requires_blood = false;
+                popr.distortion += 0.5;
+            }
         }
     }
 }

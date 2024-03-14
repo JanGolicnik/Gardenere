@@ -9,4 +9,11 @@ pub struct Player {
     pub owned_seeds: HashMap<PlantType, u32>,
     pub owned_pots: u32,
     pub has_axe: bool,
+
+    pub cut_finger: bool,
+    pub used_finger: bool,
+    pub cut_eye: bool,
+    pub used_eye: bool,
+
+    pub has_page: bool,
 }
